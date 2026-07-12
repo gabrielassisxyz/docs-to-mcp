@@ -1,0 +1,14 @@
+# Captured corpora. These are large (one wiki came to 138 MB / 2,281 pages) and they are
+# not source: `docs-to-mcp crawl` regenerates them, and whatever you captured is yours, not
+# something anyone cloning this repo wants.
+data/
+
+# Python
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Secrets. FIRECRAWL_API_KEY lives here if you use the hosted API.
+.env
