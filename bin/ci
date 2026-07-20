@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# The exact checks a PR must pass, runnable locally — so "green locally" == "green
+# in CI". This repo is a Python package plus a shell harness, so the gates are:
+# no secrets, shell scripts lint clean, and the test suite passes.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+fail=0
+
+echo "==> gitleaks (secret scan)"
+if command -v gitleaks >/dev/null 2>&1; then
+    gitleaks git --no-banner --redact . || fail=1
+else
+    echo "gitleaks not installed — see https://github.com/gitleaks/gitleaks" >&2
+    fail=1
+fi
+
+echo "==> shellcheck (shell lint)"
+if command -v shellcheck >/dev/null 2>&1; then
+    # All tracked shell scripts under bin/ and .githooks/, selected by shebang
+    # rather than by path so a non-shell tool landing in bin/ later does not
+    # make shellcheck error out.
+    mapfile -t candidates < <(git ls-files 'bin/*' '.githooks/*')
+    scripts=()
+    for candidate in "${candidates[@]}"; do
+        case "$(head -1 "$candidate")" in
+            '#!'*sh|'#!'*sh\ *) scripts+=("$candidate") ;;
+        esac
+    done
+    if [ ${#scripts[@]} -gt 0 ]; then
+        shellcheck "${scripts[@]}" || fail=1
+    fi
+else
+    echo "shellcheck not installed — skipping (install: https://www.shellcheck.net)" >&2
+fi
+
+echo "==> pytest (test suite)"
+# Hermetic and offline: fixtures only, no Firecrawl, no network. `uv run` syncs
+# the environment first, so a fresh clone passes with no manual setup step.
+if command -v uv >/dev/null 2>&1; then
+    uv run pytest -q || fail=1
+else
+    echo "uv not installed — see https://docs.astral.sh/uv/" >&2
+    fail=1
+fi
+
+if [ "$fail" -ne 0 ]; then
+    echo "==> bin/ci FAILED"
+    exit 1
+fi
+echo "==> bin/ci OK"
